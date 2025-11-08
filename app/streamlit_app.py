@@ -110,6 +110,50 @@ with col2:
         sns.barplot(x=vc.index.astype(str), y=vc.values, ax=ax)
         ax.set_ylabel("Count")
         st.pyplot(fig)
+        
+        # performance metrics if predictions available
+        if pred_path:
+            st.subheader("Model Performance")
+            pred_df = pd.read_csv(pred_path)
+            y_true = pred_df["label"]
+            y_pred = pred_df["pred_label"]
+            y_prob = pred_df["pred_proba"]
+            
+            # Confusion Matrix
+            cm = confusion_matrix(y_true, y_pred)
+            fig, ax = plt.subplots(figsize=(8, 6))
+            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax)
+            ax.set_xlabel('Predicted')
+            ax.set_ylabel('True')
+            ax.set_title('Confusion Matrix')
+            st.pyplot(fig)
+            
+            # ROC curve
+            fpr, tpr, _ = roc_curve(y_true, y_prob)
+            roc_auc = auc(fpr, tpr)
+            fig, ax = plt.subplots(figsize=(8, 6))
+            ax.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (AUC = {roc_auc:.2f})')
+            ax.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+            ax.set_xlim([0.0, 1.0])
+            ax.set_ylim([0.0, 1.05])
+            ax.set_xlabel('False Positive Rate')
+            ax.set_ylabel('True Positive Rate')
+            ax.set_title('Receiver Operating Characteristic')
+            ax.legend(loc="lower right")
+            st.pyplot(fig)
+            
+            # PR curve
+            precision, recall, _ = precision_recall_curve(y_true, y_prob)
+            pr_auc = average_precision_score(y_true, y_prob)
+            fig, ax = plt.subplots(figsize=(8, 6))
+            ax.plot(recall, precision, color='darkorange', lw=2, label=f'PR curve (AP = {pr_auc:.2f})')
+            ax.set_xlim([0.0, 1.0])
+            ax.set_ylim([0.0, 1.05])
+            ax.set_xlabel('Recall')
+            ax.set_ylabel('Precision')
+            ax.set_title('Precision-Recall Curve')
+            ax.legend(loc="lower left")
+            st.pyplot(fig)
 
         # top tokens by class
         if st.button("Show top tokens by class"):
