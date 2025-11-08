@@ -1,304 +1,154 @@
 import os
-import glob
-from typing import Optional
-
-import joblib
 import numpy as np
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
 import seaborn as sns
+import joblib
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import (precision_score, recall_score, f1_score, confusion_matrix,
-                             roc_curve, auc, precision_recall_curve, average_precision_score)
+                           roc_curve, auc, precision_recall_curve, average_precision_score,
+                           accuracy_score, roc_auc_score)
 
-# Page configuration
-st.set_page_config(
-    page_title="Spam Email Classifier",
-    page_icon="📧",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# Custom CSS for better styling
-st.markdown("""
-    <style>
-    .main > div {
-        padding: 2rem 1rem;
-    }
-    .stButton>button {
-        width: 100%;
-    }
-    .css-1v0mbdj {
-        width: 100%;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-# Title with emoji
-st.title("📧 Spam Email Classification")
+st.set_page_config(page_title="Spam Email Classification", layout="wide")
+st.title("Spam Email Classification")
 
 # Sidebar configuration
 with st.sidebar:
-    st.header("📝 Configuration")
+    st.header("Configuration")
     
-    # Dataset section
-    st.subheader("Data Settings")
-    dataset_path = st.file_uploader("Upload Dataset (CSV)", type="csv", help="Upload your spam/ham dataset CSV file")
+    # 1. Dataset CSV
+    dataset_path = st.file_uploader("1. Dataset CSV", type="csv")
     
     if dataset_path is not None:
         df = pd.read_csv(dataset_path)
         
-        # Column selection
-        st.write("Select columns from your dataset:")
-        text_col = st.selectbox(
-            "Text Column", 
-            options=df.columns.tolist(),
-            help="Column containing the message text"
-        )
-        label_col = st.selectbox(
-            "Label Column", 
-            options=df.columns.tolist(),
-            help="Column containing spam/ham labels"
-        )
+        # 2. Label column
+        label_col = st.selectbox("2. Label Column", df.columns.tolist())
         
-        # Model settings
-        st.subheader("Model Settings")
-        models_dir = st.text_input(
-            "Models Directory",
-            value="models",
-            help="Directory containing model artifacts"
-        )
-        test_size = st.slider(
-            "Test Split Size",
-            min_value=0.1,
-            max_value=0.5,
-            value=0.2,
-            step=0.05,
-            help="Proportion of dataset to use for testing"
-        )
-        seed = st.number_input(
-            "Random Seed",
-            value=42,
-            min_value=0,
-            help="Seed for reproducibility"
-        )
+        # 3. Text column
+        text_col = st.selectbox("3. Text Column", df.columns.tolist())
         
-        # Inference settings
-        st.subheader("Inference Settings")
-        threshold = st.slider(
-            "Classification Threshold",
-            min_value=0.0,
-            max_value=1.0,
-            value=0.5,
-            step=0.05,
-            help="Probability threshold for spam classification"
-        )
+        # 4. Models directory
+        models_dir = st.text_input("4. Models Directory", value="models")
+        
+        # 5. Test size
+        test_size = st.slider("5. Test Size", 0.1, 0.5, 0.2)
+        
+        # 6. Seed
+        seed = st.number_input("6. Random Seed", value=42)
+        
+        # 7. Decision threshold
+        threshold = st.slider("7. Decision Threshold", 0.0, 1.0, 0.5)
 
 
 
 
 # Main content
 if dataset_path is not None:
-    # 1. Data Overview
-    st.header("📊 Data Overview")
-    
-    # Dataset statistics
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Total Samples", df.shape[0])
-    with col2:
-        st.metric("Features", df.shape[1])
-    with col3:
-        st.metric("Classes", df[label_col].nunique())
-    
-    # Display sample data
-    with st.expander("Preview Dataset"):
-        st.dataframe(df.head(), use_container_width=True)
-    
-    # Class distribution with percentage
-    st.subheader("Class Distribution")
-    class_dist = df[label_col].value_counts()
-    class_dist_pct = df[label_col].value_counts(normalize=True) * 100
-    
-    # Create a more informative distribution plot
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
-    
-    # Count plot
-    sns.barplot(x=class_dist.index.astype(str), y=class_dist.values, ax=ax1, palette="viridis")
-    ax1.set_title("Absolute Class Distribution")
-    ax1.set_xlabel("Class")
-    ax1.set_ylabel("Count")
-    
-    # Add count labels on bars
-    for i, v in enumerate(class_dist.values):
-        ax1.text(i, v, str(v), ha='center', va='bottom')
-    
-    # Percentage plot
-    sns.barplot(x=class_dist_pct.index.astype(str), y=class_dist_pct.values, ax=ax2, palette="viridis")
-    ax2.set_title("Relative Class Distribution")
-    ax2.set_xlabel("Class")
-    ax2.set_ylabel("Percentage (%)")
-    
-    # Add percentage labels on bars
-    for i, v in enumerate(class_dist_pct.values):
-        ax2.text(i, v, f'{v:.1f}%', ha='center', va='bottom')
-    
-    plt.tight_layout()
-    st.pyplot(fig)
-    
-    # Basic text statistics
-    st.subheader("Text Statistics")
-    text_lengths = df[text_col].str.len()
-    word_counts = df[text_col].str.split().str.len()
-    
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Avg. Text Length", f"{text_lengths.mean():.1f}")
-    with col2:
-        st.metric("Avg. Word Count", f"{word_counts.mean():.1f}")
-    with col3:
-        st.metric("Unique Messages", df[text_col].nunique())
-        
-    # Text length distribution
-    fig, ax = plt.subplots(figsize=(10, 4))
-    sns.histplot(data=df, x=text_lengths, bins=50, ax=ax)
-    ax.set_title("Distribution of Message Lengths")
-    ax.set_xlabel("Characters")
-    ax.set_ylabel("Count")
-    st.pyplot(fig)
-    
-    # 2. Top Tokens by Class
-    st.header("🔍 Token Analysis")
-    
     try:
+        # Load model artifacts
         vect = joblib.load(os.path.join(models_dir, "vectorizer.joblib"))
+        model = joblib.load(os.path.join(models_dir, "model.joblib"))
         
-        # Controls
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            topn = st.slider("Number of top tokens to show", 5, 50, 20, 
-                           help="Adjust to see more or fewer tokens")
-        with col2:
-            normalize = st.checkbox("Normalize frequencies", value=True,
-                                 help="Show relative frequencies instead of absolute counts")
+        # 1. Data Overview
+        st.header("1. Data Overview")
+        st.write(f"Dataset shape: {df.shape}")
         
-        classes = class_dist.index.tolist()
+        # Class distribution
+        class_dist = df[label_col].value_counts()
+        fig, ax = plt.subplots(figsize=(10, 4))
+        sns.barplot(x=class_dist.index.astype(str), y=class_dist.values, ax=ax)
+        ax.set_title("Class Distribution")
+        ax.set_xlabel("Class")
+        ax.set_ylabel("Count")
         
-        # Token analysis tabs
-        tabs = st.tabs(["Token Distribution", "Word Cloud", "Comparative Analysis"])
+        # Add count labels
+        for i, v in enumerate(class_dist.values):
+            ax.text(i, v, str(v), ha='center', va='bottom')
         
-        with tabs[0]:
-            # Bar charts for token frequencies
-            fig, axes = plt.subplots(nrows=len(classes), ncols=1, figsize=(10, 5*len(classes)))
-            if len(classes) == 1:
-                axes = [axes]
-                
-            for ax, cls in zip(axes, classes):
-                subset = df[df[label_col] == cls][text_col].fillna("")
-                X_t = vect.transform(subset)
-                freqs = np.asarray(X_t.sum(axis=0)).ravel()
-                
-                if normalize:
-                    freqs = freqs / len(subset)
-                
-                inv_vocab = {i: t for t, i in vect.vocabulary_.items()}
-                top_idx = np.argsort(freqs)[-topn:][::-1]
-                tokens = [inv_vocab.get(i, "") for i in top_idx]
-                vals = freqs[top_idx]
-                
-                bars = sns.barplot(x=vals, y=tokens, ax=ax, palette="viridis")
-                
-                # Add value labels to bars
-                for i, v in enumerate(vals):
-                    if normalize:
-                        ax.text(v, i, f'{v:.3f}', va='center')
-                    else:
-                        ax.text(v, i, f'{int(v)}', va='center')
-                
-                ax.set_title(f"Top {topn} tokens for class: {cls}")
-                ax.set_xlabel("Normalized Frequency" if normalize else "Frequency")
+        st.pyplot(fig)
+    
+    # 2. Model Performance
+    st.header("2. Model Performance")
+    
+    # Split data
+    X = df[text_col]
+    y = df[label_col]
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    # Transform data
+    X_test_transformed = vect.transform(X_test)
+    
+    # Get predictions
+    y_pred = model.predict(X_test_transformed)
+    y_pred_proba = model.predict_proba(X_test_transformed)[:, 1]
+    
+    # Calculate metrics
+    accuracy = accuracy_score(y_test, y_pred)
+    precision = precision_score(y_test, y_pred)
+    recall = recall_score(y_test, y_pred)
+    f1 = f1_score(y_test, y_pred)
+    roc_auc = roc_auc_score(y_test, y_pred_proba)
+    
+    # Display metrics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Accuracy", f"{accuracy:.3f}")
+    with col2:
+        st.metric("Precision", f"{precision:.3f}")
+    with col3:
+        st.metric("Recall", f"{recall:.3f}")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("F1 Score", f"{f1:.3f}")
+    with col2:
+        st.metric("AUC-ROC", f"{roc_auc:.3f}")
+        
+    # Confusion Matrix
+    cm = confusion_matrix(y_test, y_pred)
+    fig, ax = plt.subplots(figsize=(8, 6))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+    plt.title('Confusion Matrix')
+    plt.xlabel('Predicted')
+    plt.ylabel('Actual')
+    st.pyplot(fig)
+    
+    # 3. Live Prediction
+    st.header("3. Live Prediction")
+    
+    text_input = st.text_area("Enter text to classify:", height=100)
+    
+    if st.button("Predict"):
+        if text_input.strip():
+            # Transform text
+            X_input = vect.transform([text_input])
             
-            plt.tight_layout()
-            st.pyplot(fig)
-        
-        with tabs[1]:
-            try:
-                from wordcloud import WordCloud
-                
-                selected_class = st.selectbox("Select class for word cloud", classes)
-                
-                # Generate word cloud
-                subset = df[df[label_col] == selected_class][text_col].fillna("")
-                X_t = vect.transform(subset)
-                freqs = np.asarray(X_t.sum(axis=0)).ravel()
-                word_freq = {inv_vocab.get(i, ""): freq for i, freq in enumerate(freqs)}
-                
-                wordcloud = WordCloud(width=800, height=400, 
-                                    background_color='white',
-                                    colormap='viridis',
-                                    max_words=100).generate_from_frequencies(word_freq)
-                
-                fig, ax = plt.subplots(figsize=(15, 8))
-                ax.imshow(wordcloud, interpolation='bilinear')
-                ax.axis('off')
-                ax.set_title(f"Word Cloud for class: {selected_class}")
-                st.pyplot(fig)
-            except ImportError:
-                st.warning("WordCloud package not installed. Install with: pip install wordcloud")
-        
-        with tabs[2]:
-            if len(classes) >= 2:
-                col1, col2 = st.columns(2)
-                with col1:
-                    class1 = st.selectbox("First class", classes, index=0)
-                with col2:
-                    class2 = st.selectbox("Second class", classes, index=1)
-                
-                # Get frequencies for both classes
-                subset1 = df[df[label_col] == class1][text_col].fillna("")
-                subset2 = df[df[label_col] == class2][text_col].fillna("")
-                
-                X_t1 = vect.transform(subset1)
-                X_t2 = vect.transform(subset2)
-                
-                freqs1 = np.asarray(X_t1.sum(axis=0)).ravel()
-                freqs2 = np.asarray(X_t2.sum(axis=0)).ravel()
-                
-                if normalize:
-                    freqs1 = freqs1 / len(subset1)
-                    freqs2 = freqs2 / len(subset2)
-                
-                # Calculate frequency ratios
-                epsilon = 1e-10  # To avoid division by zero
-                ratios = np.log2((freqs1 + epsilon) / (freqs2 + epsilon))
-                
-                # Get top discriminative tokens
-                top_idx = np.argsort(np.abs(ratios))[-topn:]
-                tokens = [inv_vocab.get(i, "") for i in top_idx]
-                vals = ratios[top_idx]
-                
-                fig, ax = plt.subplots(figsize=(10, 6))
-                colors = ['red' if x < 0 else 'blue' for x in vals]
-                bars = ax.barh(range(len(tokens)), vals, color=colors)
-                ax.set_yticks(range(len(tokens)))
-                ax.set_yticklabels(tokens)
-                ax.set_title(f"Most discriminative tokens between {class1} and {class2}")
-                ax.set_xlabel(f"Log2 ratio of frequencies ({class1} vs {class2})")
-                
-                # Add a legend
-                from matplotlib.patches import Patch
-                legend_elements = [Patch(facecolor='blue', label=f'More frequent in {class1}'),
-                                 Patch(facecolor='red', label=f'More frequent in {class2}')]
-                ax.legend(handles=legend_elements)
-                
-                st.pyplot(fig)
+            # Make prediction
+            proba = model.predict_proba(X_input)[0, 1]
+            pred = int(proba >= threshold)
+            
+            # Display results
+            st.write("Spam Probability:")
+            st.progress(float(proba))
+            
+            # Result with styling
+            if pred == 1:
+                st.error(f"Prediction: SPAM (probability: {proba:.3f})")
             else:
-                st.info("Need at least 2 classes for comparative analysis")
-                
-    except Exception as e:
-        st.error(f"Error loading vectorizer or computing tokens: {e}")
-        st.error("Make sure you have trained the model first and have the vectorizer.joblib file in your models directory")
+                st.success(f"Prediction: HAM (probability: {proba:.3f})")
+            
+    # Add example buttons
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Try spam example"):
+            st.session_state.text_input = "URGENT! You have won a $1000 gift card. Click here to claim!"
+    with col2:
+        if st.button("Try ham example"):
+            st.session_state.text_input = "Hey, are we still meeting for lunch tomorrow?"
+    
+
     
     # 3. Model Performance (Test)
     st.header("📈 Model Performance")
@@ -617,40 +467,6 @@ else:
         """,
         unsafe_allow_html=True
     )
-    st.header("Single prediction / Live inference")
-    if artifacts is None:
-        st.warning("Model artifacts not found. Run training first.")
-    else:
-        vect, model = artifacts
-        sample_spam = "Free entry in 2 a wkly comp to win cash. Reply WIN to claim"
-        sample_ham = "I'll be there at 7, see you then"
-
-        # Quick test buttons
-        btn_col1, btn_col2 = st.columns(2)
-        if btn_col1.button("Use spam example"):
-            st.session_state.setdefault("text_in", sample_spam)
-        if btn_col2.button("Use ham example"):
-            st.session_state.setdefault("text_in", sample_ham)
-
-        text = st.text_area("Message text", value=st.session_state.get("text_in", ""), key="text_in", height=150)
-        run_predict = st.button("Predict")
-
-        if run_predict and text.strip():
-            X_t = vect.transform([text])
-            proba = float(model.predict_proba(X_t)[:, 1][0])
-            label = int(proba >= threshold)
-            # probability bar with threshold marker (simple)
-            st.write("Predicted probability:")
-            st.progress(int(proba * 100))
-            st.info(f"Label: {'spam' if label==1 else 'ham'}  —  Prob: {proba:.3f} (threshold {threshold:.2f})")
-
-        st.markdown("---")
-        st.subheader("Artifacts info")
-        st.write(f"Vectorizer vocabulary size: {len(vect.vocabulary_)}")
-        st.write(f"Model type: {type(model).__name__}")
-
-with col2:
-    st.header("Dataset & exploratory")
 
 
 
