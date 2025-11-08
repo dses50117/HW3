@@ -5,7 +5,10 @@ venv/
 node_modules/
 /.pytest_cache/
 reports/visualizations/*.png
+reports/metrics/
 models/*.joblib
 datasets/raw_*.csv
 *.log
 .DS_Store
+predictions.csv
+predictions_test.csv
