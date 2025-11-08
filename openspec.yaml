@@ -1,0 +1,8 @@
+name: spam-email-classification
+version: 0.1.0
+description: OpenSpec for the spam email classification pipeline (preprocess, train, visualize, app)
+artifacts:
+  - datasets/processed/sms_spam_clean.csv
+  - models/vectorizer.joblib
+  - models/model.joblib
+  - reports/metrics/*

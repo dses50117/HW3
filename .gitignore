@@ -1,0 +1,11 @@
+/.conda/
+__pycache__/
+*.pyc
+venv/
+node_modules/
+/.pytest_cache/
+reports/visualizations/*.png
+models/*.joblib
+datasets/raw_*.csv
+*.log
+.DS_Store
