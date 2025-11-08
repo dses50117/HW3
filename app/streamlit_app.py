@@ -14,36 +14,39 @@ from sklearn.metrics import (precision_score, recall_score, f1_score, confusion_
 if 'text_input' not in st.session_state:
     st.session_state.text_input = ""
 
-st.set_page_config(page_title="Spam Email Classification", layout="wide")
-st.title("Spam Email Classification")
+st.set_page_config(page_title="Spam/Ham Classifier", layout="wide")
+st.title("Spam/Ham Classifier")
+
+st.subheader("Dataset and Columns")
+st.markdown(f"""
+- **Dataset:** `{dataset_path}`
+- **Text Column:** `{text_col}`
+- **Label Column:** `{label_col}`
+""")
 
 # Sidebar configuration
 with st.sidebar:
     st.header("Configuration")
     
-    # 1. Dataset CSV
-    dataset_path = st.file_uploader("1. Dataset CSV", type="csv")
+    # Hardcoded dataset path
+    dataset_path = "datasets/processed/sms_spam_clean.csv"
+    df = pd.read_csv(dataset_path)
     
-    if dataset_path is not None:
-        df = pd.read_csv(dataset_path)
-        
-        # 2. Label column
-        label_col = st.selectbox("2. Label Column", df.columns.tolist())
-        
-        # 3. Text column
-        text_col = st.selectbox("3. Text Column", df.columns.tolist())
-        
-        # 4. Models directory
-        models_dir = st.text_input("4. Models Directory", value="models")
-        
-        # 5. Test size
-        test_size = st.slider("5. Test Size", 0.1, 0.5, 0.2)
-        
-        # 6. Seed
-        seed = st.number_input("6. Random Seed", value=42)
-        
-        # 7. Decision threshold
-        threshold = st.slider("7. Decision Threshold", 0.0, 1.0, 0.5)
+    # Hardcoded columns
+    label_col = "label"
+    text_col = "text"
+    
+    # 4. Models directory
+    models_dir = st.text_input("4. Models Directory", value="models")
+    
+    # 5. Test size
+    test_size = st.slider("5. Test Size", 0.1, 0.5, 0.2)
+    
+    # 6. Seed
+    seed = st.number_input("6. Random Seed", value=42)
+    
+    # 7. Decision threshold
+    threshold = st.slider("7. Decision Threshold", 0.0, 1.0, 0.5)
 
 
 
@@ -301,23 +304,7 @@ if dataset_path is not None:
     
 
 
-else:
-    # Welcome message when no data is loaded
-    st.markdown(
-        """
-        <div style='padding: 2rem; border-radius: 0.5rem; background-color: #f8f9fa; text-align: center;'>
-            <h2>👋 Welcome to the Spam Email Classifier!</h2>
-            <p>To get started:</p>
-            <ol style='text-align: left; display: inline-block;'>
-                <li>Upload your dataset CSV file using the sidebar</li>
-                <li>Select the appropriate text and label columns</li>
-                <li>Adjust model settings if needed</li>
-                <li>Explore the analysis and make predictions!</li>
-            </ol>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+
 
 
 
